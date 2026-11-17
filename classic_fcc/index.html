@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Free Chess Club: Play Online & Offline Chess</title>
+  <meta name="description" content="Free Chess Club - Standalone Web Chess Client with Stockfish Engine, Live Evaluation, and Opening Explorer.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Global Navbar -->
+    <header class="top-navbar">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24">
+            <path d="M19 22H5v-2h14v2M17.65 9.57a3.5 3.5 0 0 0-2.33-3.29V4a2 2 0 0 0-2-2h-2.64a2 2 0 0 0-2 2v2.28A3.5 3.5 0 0 0 6.35 9.57L8 16h8l1.65-6.43M12 4h.68v2h-1.36V4H12z"/>
+          </svg>
+          <span>Free Chess Club</span>
+        </div>
+      </div>
+
+      <!-- Navigation & Analysis Toolbar -->
+      <div class="nav-center-actions">
+        <button type="button" class="btn-nav-icon" id="nav-first" title="Beginning (Fast Backward)">
+          <i class="fa-solid fa-backward-fast"></i>
+        </button>
+        <button type="button" class="btn-nav-icon" id="nav-prev" title="Previous Move">
+          <i class="fa-solid fa-backward"></i>
+        </button>
+        <button type="button" class="btn-nav-icon" id="nav-next" title="Next Move">
+          <i class="fa-solid fa-forward"></i>
+        </button>
+        <button type="button" class="btn-nav-icon" id="nav-last" title="End (Fast Forward)">
+          <i class="fa-solid fa-forward-fast"></i>
+        </button>
+        <button type="button" class="btn-nav-icon" id="btn-flip" title="Flip Board">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </div>
+
+      <!-- User status & Settings buttons -->
+      <div class="brand-section">
+        <div class="user-status-pill">
+          <span class="status-dot"></span>
+          <span>GuestWKNG</span>
+        </div>
+        <button type="button" class="btn-nav-icon" id="btn-settings" title="Settings">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- 3-Column Main Application Layout -->
+    <main class="main-layout">
+      <!-- Left Column: Controls & Game Info -->
+      <aside class="side-panel" id="left-panel">
+        <nav class="panel-tabs-header">
+          <button type="button" class="tab-btn active" data-tab="play">Play Bots</button>
+          <button type="button" class="tab-btn" data-tab="bot-battle">Bot vs Bot</button>
+          <button type="button" class="tab-btn" data-tab="game">Game</button>
+          <button type="button" class="tab-btn" data-tab="explorer">Explorer</button>
+          <button type="button" class="tab-btn" data-tab="history">History</button>
+        </nav>
+
+        <!-- Tab 1: Play Bots (iwantcheckmate Roster) -->
+        <div class="panel-content panel-tab-pane" id="tab-play">
+          <!-- Active Selected Bot Showcase Card -->
+          <div class="active-bot-showcase" id="active-bot-showcase">
+            <div class="active-bot-header">
+              <div class="showcase-avatar-box" id="showcase-bot-avatar"></div>
+              <div class="showcase-meta">
+                <div class="showcase-name-row">
+                  <span class="showcase-name" id="showcase-bot-name">TortureFish</span>
+                  <span class="showcase-rating-pill" id="showcase-bot-rating">???</span>
+                </div>
+                <div class="showcase-title" id="showcase-bot-title">Stockfish, But It Takes 31 Pieces Before Checkmating You</div>
+              </div>
+            </div>
+            <p class="showcase-desc" id="showcase-bot-desc">Refuses to deliver checkmate until every single one of your 15 non-king pieces has been captured and eliminated.</p>
+            <div class="showcase-actions-bar">
+              <div class="color-picker-compact">
+                <button type="button" class="color-pick-btn active" data-color="w" title="Play as White">White</button>
+                <button type="button" class="color-pick-btn" data-color="random" title="Random Color">Random</button>
+                <button type="button" class="color-pick-btn" data-color="b" title="Play as Black">Black</button>
+              </div>
+              <button type="button" class="btn-primary-action btn-highlight" id="btn-start-bot-game">
+                <i class="fa-solid fa-play"></i> Fight Bot
+              </button>
+            </div>
+          </div>
+
+          <!-- 16 Stockfish Bot Cards Gallery Header -->
+          <div class="bot-selection-header">
+            <span><i class="fa-solid fa-robot"></i> Stockfish Bots (<span id="bot-count-label">16</span>)</span>
+            <span class="bot-header-tag">Click to Select</span>
+          </div>
+          <!-- 16 Bot Cards Grid -->
+          <div class="bot-cards-grid" id="bot-cards-grid"></div>
+
+          <!-- Secondary Modes: Quick Game & Pass & Play -->
+          <div class="secondary-modes-section" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+              Classic Modes
+            </div>
+            <div class="action-btn-row">
+              <button type="button" class="btn-primary-action" id="btn-open-play-computer">
+                <i class="fa-solid fa-desktop"></i> Standard AI
+              </button>
+              <button type="button" class="btn-primary-action" id="btn-quick-game">
+                <i class="fa-solid fa-bolt"></i> Quick Game
+              </button>
+            </div>
+            <button type="button" class="btn-primary-action" id="btn-pass-play" style="width: 100%; margin-top: 6px;">
+              <i class="fa-solid fa-user-group"></i> Pass & Play (Local 2-Player)
+            </button>
+          </div>
+
+          <!-- Time Presets -->
+          <div class="time-category" style="margin-top: 12px;">
+            <div class="category-title"><i class="fa-solid fa-clock"></i> Match Clocks</div>
+            <div class="time-presets-grid">
+              <button type="button" class="preset-btn" data-min="1" data-inc="0">1m</button>
+              <button type="button" class="preset-btn" data-min="3" data-inc="0">3m</button>
+              <button type="button" class="preset-btn active" data-min="5" data-inc="0">5m</button>
+              <button type="button" class="preset-btn" data-min="10" data-inc="0">10m</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 1.5: Bot vs Bot Battle Arena -->
+        <div class="panel-content panel-tab-pane" id="tab-bot-battle" style="display: none;">
+          <div class="game-info-card" style="margin-bottom: 12px;">
+            <div style="font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-gamepad" style="color: var(--accent-orange);"></i> Bot vs Bot Battle Arena
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              Pit any two Stockfish variant bots against each other and watch live AI commentary and banter!
+            </p>
+          </div>
+
+          <!-- Matchup Setup -->
+          <div class="battle-matchup-container">
+            <div class="battle-combatant-card" id="battle-white-card">
+              <div class="combatant-label"><i class="fa-solid fa-chess-king" style="color: #fff;"></i> White Bot</div>
+              <div class="combatant-avatar" id="battle-white-avatar"></div>
+              <select class="combatant-select" id="battle-white-select"></select>
+              <div class="combatant-rating" id="battle-white-rating">Rating: ???</div>
+            </div>
+
+            <div class="battle-vs-badge">VS</div>
+
+            <div class="battle-combatant-card" id="battle-black-card">
+              <div class="combatant-label"><i class="fa-solid fa-chess-king" style="color: #888;"></i> Black Bot</div>
+              <div class="combatant-avatar" id="battle-black-avatar"></div>
+              <select class="combatant-select" id="battle-black-select"></select>
+              <div class="combatant-rating" id="battle-black-rating">Rating: 3600</div>
+            </div>
+          </div>
+
+          <!-- Speed Control -->
+          <div class="battle-speed-control">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span style="font-weight: 600;"><i class="fa-solid fa-gauge-high"></i> Move Delay:</span>
+              <span id="battle-speed-val" style="color: var(--accent-blue); font-weight: 700;">800 ms</span>
+            </div>
+            <input type="range" class="form-range" id="battle-speed-slider" min="200" max="2500" step="100" value="800">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+              <span>Fast (200ms)</span>
+              <span>Normal (800ms)</span>
+              <span>Slow (2.5s)</span>
+            </div>
+          </div>
+
+          <!-- Battle Action Toolbar -->
+          <div class="battle-action-row" style="margin-top: 14px;">
+            <button type="button" class="btn-primary-action btn-highlight" id="btn-battle-play-pause">
+              <i class="fa-solid fa-play"></i> Start Battle
+            </button>
+            <button type="button" class="btn-primary-action" id="btn-battle-step" title="Step next single move">
+              <i class="fa-solid fa-forward-step"></i> Step
+            </button>
+            <button type="button" class="btn-primary-action" id="btn-battle-reset" title="Reset board and restart">
+              <i class="fa-solid fa-rotate-left"></i> Reset
+            </button>
+          </div>
+
+          <!-- Live Banter Banner -->
+          <div class="battle-banter-status-card" style="margin-top: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
+                <i class="fa-solid fa-comments"></i> Commentary Engine
+              </span>
+              <span class="banter-mode-pill" id="battle-banter-mode-pill">Local Banter</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              Configure Groq API Key in Settings for live Llama 3 generation.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Game (Active Match / Moves / Analysis) -->
+        <div class="panel-content panel-tab-pane" id="tab-game" style="display: none;">
+          <div class="game-info-card">
+            <div id="game-matchup-title" style="font-weight: 700; font-size: 14px;">Guest vs. Stockfish (Lvl 3)</div>
+            <div class="opening-badge">
+              <span id="opening-eco">A00</span> - <span id="opening-name">Starting Position</span>
+            </div>
+          </div>
+
+          <!-- Moves Table -->
+          <div class="moves-table-container">
+            <table class="moves-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>White</th>
+                  <th>Black</th>
+                </tr>
+              </thead>
+              <tbody id="moves-table-body"></tbody>
+            </table>
+          </div>
+
+          <!-- Match Review / Export Toolbar (Copy & Save Entire Play) -->
+          <div class="reviewer-export-toolbar" id="reviewer-export-toolbar">
+            <button type="button" class="btn-game-ctrl" id="btn-copy-play" title="Copy entire play (PGN) to clipboard">
+              <i class="fa-regular fa-copy" id="copy-play-icon"></i> <span id="copy-play-text">Copy Play</span>
+            </button>
+            <button type="button" class="btn-game-ctrl" id="btn-download-play" title="Save / Download PGN file">
+              <i class="fa-solid fa-download" id="download-play-icon"></i> <span id="download-play-text">Save PGN</span>
+            </button>
+            <button type="button" class="btn-game-ctrl" id="btn-save-match" title="Save match to local history">
+              <i class="fa-solid fa-floppy-disk" id="save-match-icon"></i> <span id="save-match-text">Save Game</span>
+            </button>
+          </div>
+
+          <!-- Live Engine Evaluation & PV -->
+          <div class="engine-eval-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <strong>Stockfish Evaluation:</strong>
+              <span id="eval-score-badge" style="color: var(--accent-blue); font-weight: 700;">+0.0</span>
+            </div>
+            <div class="pv-line" id="eval-pv-text">Ready for moves...</div>
+          </div>
+
+          <!-- Game Controls (Undo, Draw, Resign, Analyze, Rewatch) -->
+          <div class="game-controls-toolbar">
+            <button type="button" class="btn-game-ctrl" id="btn-undo" title="Takeback move">
+              <i class="fa-solid fa-arrow-rotate-left"></i> Undo
+            </button>
+            <button type="button" class="btn-game-ctrl" id="btn-rewatch" title="Auto-replay this match">
+              <i class="fa-solid fa-play"></i> Rewatch
+            </button>
+            <button type="button" class="btn-game-ctrl" id="btn-draw" title="Offer draw">
+              <i class="fa-solid fa-handshake"></i> Draw
+            </button>
+            <button type="button" class="btn-game-ctrl danger" id="btn-resign" title="Resign game">
+              <i class="fa-solid fa-flag"></i> Resign
+            </button>
+            <button type="button" class="btn-game-ctrl" id="btn-analyze" title="Free Analysis Mode">
+              <i class="fa-solid fa-magnifying-glass-chart"></i> Analyze
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 3: Explorer -->
+        <div class="panel-content panel-tab-pane" id="tab-explorer" style="display: none;">
+          <div class="game-info-card">
+            <strong>Opening Book Explorer</strong>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              Play moves on the board to identify famous chess openings, variations, and master theoretical paths.
+            </p>
+          </div>
+          <div style="font-size: 13px; line-height: 1.6; color: var(--text-main);">
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>B20 Sicilian Defense</strong><br>
+              <span style="color: var(--text-muted);">1. e4 c5</span>
+            </div>
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>C60 Ruy Lopez</strong><br>
+              <span style="color: var(--text-muted);">1. e4 e5 2. Nf3 Nc6 3. Bb5</span>
+            </div>
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>D06 Queen's Gambit</strong><br>
+              <span style="color: var(--text-muted);">1. d4 d5 2. c4</span>
+            </div>
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>C00 French Defense</strong><br>
+              <span style="color: var(--text-muted);">1. e4 e6</span>
+            </div>
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>B10 Caro-Kann Defense</strong><br>
+              <span style="color: var(--text-muted);">1. e4 c6</span>
+            </div>
+            <div style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+              <strong>E20 Nimzo-Indian Defense</strong><br>
+              <span style="color: var(--text-muted);">1. d4 Nf6 2. c4 e6 3. Nc3 Bb4</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: History -->
+        <div class="panel-content panel-tab-pane" id="tab-history" style="display: none;">
+          <div class="game-info-card">
+            <strong>Local Match History</strong>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              Games played in this session are tracked locally in your browser.
+            </p>
+          </div>
+          <div id="history-items-container" style="font-size: 13px; color: var(--text-muted);">
+            No previous games recorded yet.
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Column: Chessboard & Clocks -->
+      <section class="center-board-container">
+        <!-- Top Player (Black by default) -->
+        <div class="board-player-banner" id="top-player-banner">
+          <div class="player-info-meta">
+            <div class="player-avatar" id="top-player-avatar"><i class="fa-solid fa-robot"></i></div>
+            <span class="player-name" id="top-player-name">TortureFish</span>
+            <span class="player-rating dynamic-rating-badge" id="top-player-rating">???</span>
+          </div>
+          <div class="player-clock" id="black-clock">05:00</div>
+        </div>
+
+        <!-- Board & Evaluation Bar Wrapper -->
+        <div class="board-interactive-wrapper">
+          <!-- Evaluation Bar -->
+          <div class="eval-bar-container" id="eval-bar-container">
+            <div class="eval-bar-white-fill" id="eval-bar-fill"></div>
+            <div class="eval-score-text" id="eval-score-text">0.0</div>
+          </div>
+
+          <!-- 8x8 Chessboard Grid -->
+          <div class="chessboard" id="chessboard"></div>
+
+          <!-- Best Move Arrow SVG Overlay -->
+          <svg class="arrow-overlay" id="arrow-overlay" viewBox="0 0 100 100">
+            <g id="arrow-layer"></g>
+          </svg>
+
+          <!-- Pawn Promotion Choice Dialog -->
+          <div class="promotion-dialog-overlay" id="promotion-dialog" style="display: none;">
+            <div class="promotion-box">
+              <div class="promotion-piece-choice" id="promo-q" data-piece="q" title="Queen"></div>
+              <div class="promotion-piece-choice" id="promo-r" data-piece="r" title="Rook"></div>
+              <div class="promotion-piece-choice" id="promo-b" data-piece="b" title="Bishop"></div>
+              <div class="promotion-piece-choice" id="promo-n" data-piece="n" title="Knight"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Player (White by default) -->
+        <div class="board-player-banner" id="bottom-player-banner">
+          <div class="player-info-meta">
+            <div class="player-avatar" id="bottom-player-avatar"><i class="fa-solid fa-user"></i></div>
+            <span class="player-name" id="bottom-player-name">Guest Player</span>
+            <span class="player-rating dynamic-rating-badge" id="bottom-player-rating">(Player)</span>
+          </div>
+          <div class="player-clock" id="white-clock">05:00</div>
+        </div>
+      </section>
+
+      <!-- Right Column: Console / Bot Chat / Engine Logs -->
+      <aside class="side-panel right-panel" id="right-panel">
+        <nav class="panel-tabs-header">
+          <button type="button" class="tab-btn active" data-tab="console">Console</button>
+          <button type="button" class="tab-btn" data-tab="admin">ROBOadmin</button>
+          <button type="button" class="tab-btn" data-tab="engine">adminBOT</button>
+        </nav>
+
+        <div class="panel-content" style="height: 100%;">
+          <!-- Terminal / Feed Area -->
+          <div class="console-feed" id="console-feed"></div>
+
+          <!-- Command & Chat Input Bar -->
+          <div class="chat-input-bar">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Type command or chat (e.g. 'help')..." autocomplete="off">
+            <button type="button" class="chat-send-btn" id="chat-send-btn">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Modal: Play Computer -->
+    <div class="modal-backdrop" id="play-computer-modal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <div class="modal-title"><i class="fa-solid fa-desktop"></i> Play Computer</div>
+          <button type="button" class="modal-close-btn">&times;</button>
+        </div>
+        <form id="play-computer-form">
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Difficulty Level:</label>
+              <div class="form-range-row">
+                <input type="range" class="form-range" id="ai-level-slider" min="1" max="8" step="1" value="3">
+                <span id="ai-level-val" style="font-weight: 700; min-width: 20px;">3</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted);" id="ai-level-desc">Intermediate (~1400)</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Player Color:</label>
+              <div class="color-radio-group">
+                <label class="color-radio-label">
+                  <input type="radio" name="ai-color" value="w" checked> White
+                </label>
+                <label class="color-radio-label">
+                  <input type="radio" name="ai-color" value="random"> Random
+                </label>
+                <label class="color-radio-label">
+                  <input type="radio" name="ai-color" value="b"> Black
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Time Control:</label>
+              <div class="custom-time-row" style="background: transparent; border: none; padding: 0;">
+                <input type="number" id="ai-time-min" class="custom-time-input" min="0" max="180" value="5">
+                <span>min</span>
+                <input type="number" id="ai-time-inc" class="custom-time-input" min="0" max="60" value="0">
+                <span>inc</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="preset-btn btn-modal-cancel">Cancel</button>
+            <button type="submit" class="btn-primary-action btn-highlight">Start Game</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal: Settings -->
+    <div class="modal-backdrop" id="settings-modal">
+      <div class="modal-window">
+        <div class="modal-header">
+          <div class="modal-title"><i class="fa-solid fa-gear"></i> Settings</div>
+          <button type="button" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Board Themes:</label>
+            <div class="theme-picker-grid">
+              <div class="theme-card active" data-theme="pressroom">
+                <div class="theme-swatch" style="background: linear-gradient(135deg, #dee3e6 50%, #8ca2ad 50%);"></div>
+                Pressroom
+              </div>
+              <div class="theme-card" data-theme="brownie">
+                <div class="theme-swatch" style="background: linear-gradient(135deg, #f0d9b5 50%, #b58863 50%);"></div>
+                Brownie
+              </div>
+              <div class="theme-card" data-theme="emerald">
+                <div class="theme-swatch" style="background: linear-gradient(135deg, #e8edd0 50%, #779952 50%);"></div>
+                Emerald
+              </div>
+              <div class="theme-card" data-theme="wood">
+                <div class="theme-swatch" style="background: linear-gradient(135deg, #e3c896 50%, #8f5835 50%);"></div>
+                Wood
+              </div>
+              <div class="theme-card" data-theme="dark">
+                <div class="theme-swatch" style="background: linear-gradient(135deg, #3a4756 50%, #242c37 50%);"></div>
+                Dark
+              </div>
+            </div>
+          </div>
+
+          <!-- Groq AI Banter Settings -->
+          <div class="form-group" style="padding: 10px; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border-color);">
+            <label class="form-label" style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--accent-orange);">
+              <i class="fa-solid fa-brain"></i> Groq AI Bot Banter & Personality:
+            </label>
+            <p style="font-size: 11px; color: var(--text-muted); margin: 4px 0 8px 0; line-height: 1.4;">
+              Supply a Groq API Key for live Llama 3 generated dialogue tailored to each bot's unique personality. Stored locally in your browser. (Optional: built-in personality quotes work offline automatically).
+            </p>
+            <div style="display: flex; gap: 6px;">
+              <input type="password" id="groq-api-key-input" class="custom-time-input" style="flex: 1; text-align: left; padding: 6px 10px; font-family: monospace; font-size: 12px;" placeholder="gsk_...">
+              <button type="button" class="btn-primary-action" id="btn-save-groq-key" style="padding: 6px 12px; font-size: 11px;">Save</button>
+              <button type="button" class="btn-primary-action" id="btn-clear-groq-key" style="padding: 6px 12px; font-size: 11px;">Clear</button>
+            </div>
+            <div style="display: flex; gap: 6px; margin-top: 8px; align-items: center;">
+              <label for="groq-model-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); min-width: 42px;">Model:</label>
+              <select id="groq-model-select" class="custom-time-input" style="flex: 1; text-align: left; padding: 5px 8px; font-size: 11px; background: var(--bg-panel); color: var(--text-main);">
+                <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended)</option>
+                <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                <option value="llama3-8b-8192">llama3-8b-8192</option>
+                <option value="llama-3.2-3b-preview">llama-3.2-3b-preview</option>
+                <option value="llama-3.2-1b-preview">llama-3.2-1b-preview</option>
+                <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                <option value="gemma2-9b-it">gemma2-9b-it</option>
+              </select>
+              <button type="button" class="btn-primary-action" id="btn-fetch-groq-models" style="padding: 5px 8px; font-size: 11px;" title="Query Groq for models active on your API key">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+            <div id="groq-status-indicator" style="font-size: 11px; margin-top: 6px; font-weight: 600; color: var(--text-muted);">
+              Status: Using Built-in Offline Banter
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Display & Audio:</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label class="color-radio-label">
+                <input type="checkbox" id="toggle-sound" checked> Sound Effects
+              </label>
+              <label class="color-radio-label">
+                <input type="checkbox" id="toggle-eval-bar" checked> Evaluation Bar
+              </label>
+              <label class="color-radio-label">
+                <input type="checkbox" id="toggle-arrow" checked> Engine Best Move Arrow
+              </label>
+              <label class="color-radio-label">
+                <input type="checkbox" id="toggle-bot-banter" checked> Live Bot Banter & Speech in Console
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-primary-action btn-modal-cancel">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Game Over -->
+    <div class="modal-backdrop" id="game-over-modal">
+      <div class="modal-window" style="max-width: 440px; text-align: center;">
+        <div class="modal-header">
+          <h3 id="game-over-title" style="margin: 0; font-size: 17px; font-weight: 700; flex: 1; text-align: center;">Game Over</h3>
+          <button type="button" class="modal-close-btn" id="btn-close-game-over">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="game-over-desc" style="font-size: 15px; margin: 0;"></p>
+          <div style="margin-top: 14px; background: var(--bg-panel); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+              <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Match FEN:</span>
+              <button type="button" class="btn-primary-action" id="btn-copy-match-fen" style="padding: 3px 8px; font-size: 11px; height: auto;">
+                <i class="fa-regular fa-copy" id="copy-fen-icon"></i> <span id="copy-fen-text">Copy FEN</span>
+              </button>
+            </div>
+            <input type="text" id="game-over-fen-input" readonly style="width: 100%; font-family: var(--font-mono); font-size: 11px; padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-card); color: var(--text-main);" />
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <button type="button" class="btn-primary-action" id="btn-game-over-copy-play" style="flex: 1; padding: 5px 8px; font-size: 11px; height: auto;">
+                <i class="fa-regular fa-copy" id="game-over-copy-play-icon"></i> <span id="game-over-copy-play-text">Copy Play (PGN)</span>
+              </button>
+              <button type="button" class="btn-primary-action" id="btn-game-over-save-pgn" style="flex: 1; padding: 5px 8px; font-size: 11px; height: auto;">
+                <i class="fa-solid fa-download" id="game-over-save-pgn-icon"></i> <span id="game-over-save-pgn-text">Save PGN</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: center; gap: 10px;">
+          <button type="button" class="btn-primary-action" id="btn-review-game">
+            <i class="fa-solid fa-magnifying-glass"></i> Review Match
+          </button>
+          <button type="button" class="btn-primary-action btn-highlight" id="btn-rematch">
+            <i class="fa-solid fa-rotate-right"></i> Rematch
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="chess.min.js"></script>
+  <script src="pieces.js"></script>
+  <script src="bots.js?v=3"></script>
+  <script src="groq.js?v=3"></script>
+  <script src="engine.js?v=3"></script>
+  <script src="app.js?v=3"></script>
+</body>
+</html>

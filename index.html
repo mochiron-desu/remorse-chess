@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Remorse Chess 1.0</title>
+  <meta name="description" content="Remorse Chess: a chess variant in which a piece's first capture triggers a permanent psychological reaction. Devastated, Pacifist, Unaffected or Psychopath.">
+  <meta name="theme-color" content="#F5F2EA">
+
+  <!-- Local type: Newsreader (display), IBM Plex Sans (interface), IBM Plex Mono (notation). See fonts/ -->
+  <link rel="preload" href="fonts/ibm-plex-sans-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="app-shell">
+  <!-- Masthead -->
+  <header class="masthead">
+    <div class="masthead-title">
+      <h1 class="wordmark">Remorse Chess</h1>
+      <p class="masthead-sub">Orthodox chess, with one amendment: the first capture leaves a mark.</p>
+    </div>
+    <div class="masthead-actions">
+      <span class="edition mono-label">Ed. 1.0</span>
+      <button type="button" class="btn btn-quiet" id="btn-open-rulebook" title="Read the full rules">Rules</button>
+      <button type="button" class="btn" id="btn-restart" title="Start a new game with the current settings">New game</button>
+    </div>
+  </header>
+
+  <main class="table">
+    <!-- Play area: status, notices, board, board controls -->
+    <section class="play-area" aria-label="Game board">
+      <div class="status-line">
+        <div id="turn-indicator" class="turn white" role="status" aria-live="polite">White to move</div>
+        <span id="move-counter" class="move-counter mono-label">Move 1</span>
+      </div>
+
+      <!-- Notice slot: reserved height so the board never jumps -->
+      <div class="notice-slot">
+        <div id="bonus-move-banner" class="notice notice-bonus hidden">
+          <span class="notice-glyph" data-glyph="psychopath" aria-hidden="true"></span>
+          <span class="notice-text"><strong>Psychopath bonus.</strong> Take one more move with the same piece, or end the turn.</span>
+          <button type="button" class="btn btn-small" id="btn-pass-bonus">End turn</button>
+        </div>
+
+        <div id="selection-note" class="notice notice-selection hidden" aria-live="polite">
+          <span class="notice-glyph" id="selection-glyph" aria-hidden="true"></span>
+          <span class="notice-text" id="selection-text"></span>
+          <span id="absolve-action-container">
+            <button type="button" class="btn btn-small btn-absolve hidden" id="btn-absolve-action">Absolve</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="board-frame">
+        <div id="remorse-board" class="chess-board" role="grid" aria-label="Chessboard"></div>
+      </div>
+
+      <div class="board-controls">
+        <div class="control-group">
+          <button type="button" class="btn btn-quiet" id="btn-undo" title="Take back the last move">Undo</button>
+          <button type="button" class="btn btn-quiet" id="btn-redo" title="Replay the move you took back">Redo</button>
+          <button type="button" class="btn btn-quiet" id="btn-flip" title="Flip the board">Flip</button>
+        </div>
+        <div class="control-group">
+          <label class="switch">
+            <input type="checkbox" id="toggle-sound" checked>
+            <span class="switch-track" aria-hidden="true"></span>
+            Sound
+          </label>
+          <label class="switch" title="Roll reaction dice automatically for your pieces">
+            <input type="checkbox" id="toggle-autoroll">
+            <span class="switch-track" aria-hidden="true"></span>
+            Auto-roll
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar: match setup + record / roster / states / scenarios -->
+    <aside class="sidebar" aria-label="Game information">
+      <section class="match-setup" aria-label="Match setup">
+        <div class="setup-row">
+          <span class="setup-label">Opponent</span>
+          <div class="segmented" role="group" aria-label="Opponent">
+            <button type="button" class="seg mode-select-btn active" data-mode="vs_ai">Machine</button>
+            <button type="button" class="seg mode-select-btn" data-mode="pass_play">Two players</button>
+          </div>
+        </div>
+        <div class="setup-row" id="ai-config-panel">
+          <span class="setup-label">Machine plays</span>
+          <div class="segmented" role="group" aria-label="Machine colour">
+            <button type="button" class="seg ai-color-btn active" data-color="b">Black</button>
+            <button type="button" class="seg ai-color-btn" data-color="w">White</button>
+          </div>
+        </div>
+      </section>
+
+      <nav class="tabs" role="tablist" aria-label="Sidebar sections">
+        <button type="button" class="tab-btn active" role="tab" data-target="tab-chronicle">Record</button>
+        <button type="button" class="tab-btn" role="tab" data-target="tab-ward">Roster</button>
+        <button type="button" class="tab-btn" role="tab" data-target="tab-game">States</button>
+        <button type="button" class="tab-btn" role="tab" data-target="tab-scenarios">Scenarios</button>
+      </nav>
+
+      <div class="tab-panels">
+        <!-- Record: annotated score sheet -->
+        <div class="tab-view active" id="tab-chronicle" role="tabpanel">
+          <div class="panel-head">
+            <h2 class="panel-title">Score sheet</h2>
+            <span class="mono-label">Moves and reactions</span>
+          </div>
+          <ol id="chronicle-feed" class="scoresheet"></ol>
+        </div>
+
+        <!-- Roster: living pieces and their states -->
+        <div class="tab-view" id="tab-ward" role="tabpanel">
+          <div id="piece-ward-container"></div>
+        </div>
+
+        <!-- States: reference for the four reactions -->
+        <div class="tab-view" id="tab-game" role="tabpanel">
+          <div class="panel-head">
+            <h2 class="panel-title">The reaction roll</h2>
+            <span class="mono-label">1d6 on first capture</span>
+          </div>
+          <p class="panel-intro">A piece rolls once, on its first capture. The result is permanent for the rest of the game, though a bishop can lift Devastation and Pacifism.</p>
+
+          <ul class="state-reference">
+            <li class="state-ref s-devastated">
+              <span class="state-ref-roll mono">1</span>
+              <div>
+                <h3 class="state-ref-name"><span class="glyph" data-glyph="devastated"></span>Devastated</h3>
+                <p>Cannot move or capture. A bishop must stand adjacent and spend a turn absolving it within 3 of its owner's turns, or it removes itself from the board.</p>
+              </div>
+            </li>
+            <li class="state-ref s-pacifist">
+              <span class="state-ref-roll mono">2–3</span>
+              <div>
+                <h3 class="state-ref-name"><span class="glyph" data-glyph="pacifist"></span>Pacifist</h3>
+                <p>Receives a guilt token. Moves normally but cannot capture until a bishop absolves it. A bishop that turns Pacifist meditates for one turn and absolves itself.</p>
+              </div>
+            </li>
+            <li class="state-ref s-unaffected">
+              <span class="state-ref-roll mono">4–5</span>
+              <div>
+                <h3 class="state-ref-name"><span class="glyph" data-glyph="unaffected"></span>Unaffected</h3>
+                <p>No consequence. Plays by standard rules.</p>
+              </div>
+            </li>
+            <li class="state-ref s-psychopath">
+              <span class="state-ref-roll mono">6</span>
+              <div>
+                <h3 class="state-ref-name"><span class="glyph" data-glyph="psychopath"></span>Psychopath</h3>
+                <p>Takes one extra move immediately after each capture.</p>
+              </div>
+            </li>
+            <li class="state-ref s-bloodlust state-ref-sub">
+              <span class="state-ref-roll mono">3 kills</span>
+              <div>
+                <h3 class="state-ref-name"><span class="glyph" data-glyph="bloodlust"></span>Bloodlust</h3>
+                <p>A Psychopath with three kills. It may only move by capturing, and it may capture friendly pieces, though never its own king.</p>
+              </div>
+            </li>
+          </ul>
+
+          <p class="panel-footnote"><span class="glyph" data-glyph="absolve"></span>Bishops are the only absolvers. If a side loses every bishop, absolution is gone until a pawn promotes to one.</p>
+        </div>
+
+        <!-- Scenarios -->
+        <div class="tab-view" id="tab-scenarios" role="tabpanel">
+          <div class="panel-head">
+            <h2 class="panel-title">Study positions</h2>
+            <span class="mono-label">Loads onto the board</span>
+          </div>
+          <ol class="scenario-list">
+            <li>
+              <button type="button" class="scenario-button scenario-card-btn" data-scenario="devastation">
+                <span class="scenario-no mono">No. 1</span>
+                <span class="scenario-body">
+                  <span class="scenario-title">The devastated knight</span>
+                  <span class="scenario-desc">A paralysed knight on d4 has two turns left. The bishop on c2 must reach it and absolve.</span>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="scenario-button scenario-card-btn" data-scenario="guilt">
+                <span class="scenario-no mono">No. 2</span>
+                <span class="scenario-body">
+                  <span class="scenario-title">The pacifist rook</span>
+                  <span class="scenario-desc">The rook carries a guilt token: free to move, unable to capture. A bishop stands beside it.</span>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="scenario-button scenario-card-btn" data-scenario="psychopath">
+                <span class="scenario-no mono">No. 3</span>
+                <span class="scenario-body">
+                  <span class="scenario-title">A psychopath's chain</span>
+                  <span class="scenario-desc">The queen takes on d5, then uses her bonus move to take again on g5.</span>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="scenario-button scenario-card-btn" data-scenario="bloodlust">
+                <span class="scenario-no mono">No. 4</span>
+                <span class="scenario-body">
+                  <span class="scenario-title">Bloodlust</span>
+                  <span class="scenario-desc">A rook with three kills must capture to move. The enemy pawn on d7, or its own pawn on g4.</span>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="scenario-button scenario-card-btn" data-scenario="standard">
+                <span class="scenario-no mono">No. 5</span>
+                <span class="scenario-body">
+                  <span class="scenario-title">Standard opening</span>
+                  <span class="scenario-desc">The usual starting position. Every piece is untested.</span>
+                </span>
+              </button>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="sidebar-credit">
+        Original concept by <a href="https://www.instagram.com/bardelo_bardalini/" target="_blank" rel="noopener noreferrer">@bardelo_bardalini</a>
+      </footer>
+    </aside>
+  </main>
+
+  <!-- Modal: reaction roll -->
+  <div class="modal-scrim hidden" id="dice-roll-modal">
+    <div class="modal-card modal-dice" role="dialog" aria-modal="true" aria-labelledby="dice-modal-title">
+      <div class="modal-kicker mono-label">First capture</div>
+      <h3 class="modal-title" id="dice-modal-title">The reaction roll</h3>
+      <p id="dice-modal-desc" class="modal-desc-text"></p>
+
+      <div class="dice-assembly" id="dice-assembly-area">
+        <div class="dice-viewport" title="Click to roll">
+          <div class="dice-object show-1" id="dice-cube">
+            <div class="dice-side side-1" aria-label="1"><i class="pip c"></i></div>
+            <div class="dice-side side-2" aria-label="2"><i class="pip tl"></i><i class="pip br"></i></div>
+            <div class="dice-side side-3" aria-label="3"><i class="pip tl"></i><i class="pip c"></i><i class="pip br"></i></div>
+            <div class="dice-side side-4" aria-label="4"><i class="pip tl"></i><i class="pip tr"></i><i class="pip bl"></i><i class="pip br"></i></div>
+            <div class="dice-side side-5" aria-label="5"><i class="pip tl"></i><i class="pip tr"></i><i class="pip c"></i><i class="pip bl"></i><i class="pip br"></i></div>
+            <div class="dice-side side-6" aria-label="6"><i class="pip tl"></i><i class="pip tr"></i><i class="pip ml"></i><i class="pip mr"></i><i class="pip bl"></i><i class="pip br"></i></div>
+          </div>
+        </div>
+        <div class="dice-shadow" aria-hidden="true"></div>
+        <button type="button" class="btn btn-accent" id="btn-roll-dice">Roll the die</button>
+        <span class="dice-hint">or click the die, or press Space</span>
+      </div>
+
+      <div class="dice-result-card hidden" id="dice-outcome-card">
+        <div id="dice-outcome-badge" class="dice-scale"></div>
+        <h4 id="dice-outcome-title" class="dice-result-title"></h4>
+        <p id="dice-outcome-text" class="dice-result-detail"></p>
+        <button type="button" class="btn btn-block" id="btn-accept-dice">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: pawn promotion -->
+  <div class="modal-scrim hidden" id="promotion-modal">
+    <div class="modal-card modal-narrow" role="dialog" aria-modal="true" aria-labelledby="promo-title">
+      <h3 class="modal-title" id="promo-title">Promote pawn</h3>
+      <p class="modal-desc-text">Choosing a bishop restores absolution if your side has lost all of its bishops.</p>
+      <div class="promo-grid" id="promo-options-row"></div>
+    </div>
+  </div>
+
+  <!-- Modal: game over -->
+  <div class="modal-scrim hidden" id="game-over-modal">
+    <div class="modal-card modal-narrow modal-result" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+      <div class="modal-kicker mono-label">Result</div>
+      <h3 id="game-over-title" class="modal-title modal-title-large">Game over</h3>
+      <p id="game-over-desc" class="modal-desc-text"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-quiet" id="btn-gameover-view">View board</button>
+        <button type="button" class="btn btn-accent" id="btn-gameover-new">New game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: rules -->
+  <div class="modal-scrim hidden" id="rulebook-modal">
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="rulebook-title">
+      <div class="modal-header-bar">
+        <div>
+          <div class="modal-kicker mono-label">Edition 1.0</div>
+          <h3 class="modal-title" id="rulebook-title">Rules of Remorse Chess</h3>
+        </div>
+        <button type="button" class="btn btn-quiet" id="btn-close-rulebook">Close</button>
+      </div>
+      <div class="rulebook-scroll">
+        <h2><span class="mono">§1</span> Summary</h2>
+        <p>Remorse Chess is orthodox chess with one addition. The first time a piece captures, it rolls a six-sided die, and the result decides how that piece lives with what it has done.</p>
+        <p><strong>Objective.</strong> Checkmate the opposing king. Every standard rule applies unless a piece's state says otherwise.</p>
+        <p><strong>Original Concept.</strong> The psychological capture consequences and remorse rules were created by <a href="https://www.instagram.com/bardelo_bardalini/" target="_blank" rel="noopener noreferrer">@bardelo_bardalini</a>.</p>
+
+        <h2><span class="mono">§2</span> The reaction roll</h2>
+        <p>Each piece rolls exactly once per game, on its first capture. The state it receives is permanent.</p>
+        <table>
+          <thead>
+            <tr><th>D6</th><th>State</th><th>Effect</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">1</td><td>Devastated</td><td>Cannot move. Removes itself unless absolved within 3 of its owner's turns.</td></tr>
+            <tr><td class="mono">2–3</td><td>Pacifist</td><td>Moves normally. Cannot capture until absolved.</td></tr>
+            <tr><td class="mono">4–5</td><td>Unaffected</td><td>Standard rules.</td></tr>
+            <tr><td class="mono">6</td><td>Psychopath</td><td>One extra move after each capture.</td></tr>
+          </tbody>
+        </table>
+
+        <h2><span class="mono">§3</span> States</h2>
+        <h3>3.1 Devastated</h3>
+        <p>The piece cannot move or capture. A bishop must move adjacent and spend one full turn absolving it within 3 of its owner's turns. If no one comes, the piece captures itself.</p>
+
+        <h3>3.2 Pacifist</h3>
+        <p>A guilt token is placed under the piece. It moves normally but cannot capture enemy pieces. A bishop must move adjacent and spend one full turn to lift the token.</p>
+        <p><strong>Bishops.</strong> A bishop that turns Pacifist spends its next turn in meditation and then absolves itself.</p>
+
+        <h3>3.3 Psychopath and Bloodlust</h3>
+        <p>The piece takes one additional move immediately after each capture. At three total kills it falls into <strong>Bloodlust</strong>: it may only move by capturing, it may capture friendly pieces, and it may never capture its own king.</p>
+
+        <h2><span class="mono">§4</span> Absolution</h2>
+        <p>Only bishops can absolve. Absolution is not possible while your king is in check. If a side loses every bishop, it cannot absolve until a pawn promotes to a bishop.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="pieces.js"></script>
+  <script src="remorse_engine.js"></script>
+  <script src="remorse_ai.js"></script>
+  <script src="audio.js"></script>
+  <script src="remorse_ui.js"></script>
+</body>
+</html>
