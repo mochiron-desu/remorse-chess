@@ -7,6 +7,18 @@ An interactive, light archival editorial implementation of **Remorse Chess**, an
 
 ---
 
+## Visual Preview
+
+| Match Board & Score Sheet | 3D Reaction Roll (D6) |
+| :---: | :---: |
+| ![Desktop Hero](assets/screenshots/desktop-hero.png) | ![Dice Reaction](assets/screenshots/dice-reaction-modal.png) |
+
+| Tactical Scenarios & Living Roster | Mobile View |
+| :---: | :---: |
+| ![Tactical Study](assets/screenshots/tactical-study.png) | <img src="assets/screenshots/mobile-view.png" width="320" alt="Mobile View"> |
+
+---
+
 ## Overview & Core Rules
 
 Remorse Chess is played according to orthodox chess rules (objective: checkmate the opponent's king), modified by the psychological reactions of individual pieces after capturing.
