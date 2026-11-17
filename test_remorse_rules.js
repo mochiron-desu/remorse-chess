@@ -426,6 +426,300 @@ test('Rule 3.4: Bloodlust piece retains psychopath bonus move after capturing fr
   assert.strictEqual(engine.turn, 'b');
 });
 
+// 15. Bloodlust King Capture (Regicide Win)
+test('Rule 3.4: Bloodlust piece capturing King results in immediate automatic win (Regicide)', () => {
+  const engine = new RemorseEngine();
+  engine.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'a1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'd8' },
+      { id: 'wQ', type: 'q', color: 'w', square: 'd4', condition: 'bloodlust', kills: 3, hasRolled: true }
+    ]
+  });
+
+  const moves = engine.getLegalMoves('d4');
+  const kingCapture = moves.find(m => m.to === 'd8');
+  assert(kingCapture, 'Bloodlust piece must be able to target enemy king');
+
+  const res = engine.makeMove(kingCapture);
+  assert.strictEqual(engine.gameOver, true, 'Game must end immediately upon king capture');
+  assert.strictEqual(engine.gameResult.status, 'regicide', 'Status must be regicide');
+  assert.strictEqual(engine.gameResult.winner, 'w', 'Capturing team must win');
+  assert(res.move.san.endsWith('#'), 'Regicide move SAN must end with checkmate symbol #');
+});
+
+// 16. En Passant Capture & Board State
+test('Orthodox Caveat: En Passant capture removes enemy pawn from 5th rank and triggers D6 roll', () => {
+  const engine = new RemorseEngine({ autoRollDice: true });
+  // 1. e4 a6 2. e5 d5
+  engine.makeMove('e2e4');
+  engine.makeMove('a7a6');
+  engine.makeMove('e4e5');
+  engine.makeMove('d7d5');
+
+  assert.strictEqual(engine.enPassant, 'd6', 'En passant target must be d6');
+  const epMove = engine.getLegalMoves('e5').find(m => m.to === 'd6');
+  assert(epMove, 'En passant move e5xd6 must be legal');
+  assert.strictEqual(epMove.isEnPassant, true);
+
+  const res = engine.makeMove(epMove);
+  assert.strictEqual(engine.getPiece('d5'), null, 'Captured pawn on d5 must be removed from board');
+  assert.strictEqual(engine.getPiece('d6').id, 'wP5', 'Capturing pawn must be on d6');
+  assert.strictEqual(res.move.isEnPassant, true);
+  assert.strictEqual(engine.getPiece('d6').hasRolled, true, 'First capture must trigger D6 reaction roll');
+});
+
+// 17. En Passant Expiration
+test('Orthodox Caveat: En Passant expires if not taken immediately', () => {
+  const engine = new RemorseEngine();
+  engine.makeMove('e2e4');
+  engine.makeMove('a7a6');
+  engine.makeMove('e4e5');
+  engine.makeMove('d7d5');
+  assert.strictEqual(engine.enPassant, 'd6');
+
+  // White plays quiet move instead of taking en passant
+  engine.makeMove('a2a3');
+  assert.strictEqual(engine.enPassant, null, 'En passant target must expire after 1 move');
+
+  // Black plays h7-h6
+  engine.makeMove('h7h6');
+
+  // White can no longer play e5xd6
+  const epMove = engine.getLegalMoves('e5').find(m => m.to === 'd6');
+  assert.strictEqual(epMove, undefined, 'En passant must no longer be available');
+});
+
+// 18. Guilt-Ridden Pawn Cannot Capture En Passant
+test('Remorse & Orthodox: Guilt-ridden (Pacifist) pawn cannot capture en passant', () => {
+  const engine = new RemorseEngine();
+  engine.loadScenario({
+    turn: 'b',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' },
+      { id: 'wP', type: 'p', color: 'w', square: 'e5', condition: 'guilt_ridden', reaction: 'guilt_ridden' },
+      { id: 'bP', type: 'p', color: 'b', square: 'd7' }
+    ]
+  });
+
+  // Black plays d7-d5 double push
+  engine.makeMove({ from: 'd7', to: 'd5', isDoublePawnPush: true });
+  assert.strictEqual(engine.enPassant, 'd6');
+
+  const moves = engine.getLegalMoves('e5');
+  const epMove = moves.find(m => m.to === 'd6');
+  assert.strictEqual(epMove, undefined, 'Pacifist pawn cannot capture en passant because it cannot capture');
+});
+
+// 19. En Passant Horizontal Pin
+test('Orthodox Caveat: Horizontal pin to King makes en passant illegal', () => {
+  const engine = new RemorseEngine();
+  engine.loadScenario({
+    turn: 'b',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e5' },
+      { id: 'wP', type: 'p', color: 'w', square: 'd5' },
+      { id: 'bK', type: 'k', color: 'b', square: 'h8' },
+      { id: 'bR', type: 'r', color: 'b', square: 'a5' },
+      { id: 'bP', type: 'p', color: 'b', square: 'c7' }
+    ]
+  });
+
+  // Black plays c7-c5 double push
+  engine.makeMove('c7c5');
+  assert.strictEqual(engine.enPassant, 'c6');
+
+  // If White pawn takes d5xc6 e.p., both pawns disappear from 5th rank exposing White King to Black Rook on a5
+  const moves = engine.getLegalMoves('d5');
+  const epMove = moves.find(m => m.to === 'c6');
+  assert.strictEqual(epMove, undefined, 'En passant that exposes King to check along the rank is illegal');
+});
+
+// 20. Castling Disallowed with Devastated or Bloodlust Rook
+test('Remorse & Orthodox: Castling disallowed if Rook is Devastated or in Bloodlust', () => {
+  const engine = new RemorseEngine();
+  engine.loadScenario({
+    turn: 'w',
+    castling: { w: { k: true, q: true }, b: { k: false, q: false } },
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' },
+      { id: 'wR1', type: 'r', color: 'w', square: 'h1', condition: 'devastated', devastatedTurnsLeft: 3 },
+      { id: 'wR2', type: 'r', color: 'w', square: 'a1' }
+    ]
+  });
+
+  const kingMoves = engine.getLegalMoves('e1');
+  const kingsideCastle = kingMoves.find(m => m.isCastle === 'k');
+  const queensideCastle = kingMoves.find(m => m.isCastle === 'q');
+
+  assert.strictEqual(kingsideCastle, undefined, 'Cannot castle kingside with devastated rook');
+  assert(queensideCastle, 'Can castle queenside with normal rook');
+});
+
+// 21. Castling Disallowed Through Check or Out of Check
+test('Orthodox Caveat: Castling disallowed while in check or through check', () => {
+  const engine = new RemorseEngine();
+  // Enemy Rook at e8 giving check to White King on e1
+  engine.loadScenario({
+    turn: 'w',
+    castling: { w: { k: true, q: true }, b: { k: false, q: false } },
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bR', type: 'r', color: 'b', square: 'e8' },
+      { id: 'wR1', type: 'r', color: 'w', square: 'h1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'h8' }
+    ]
+  });
+
+  const kingMovesInCheck = engine.getLegalMoves('e1');
+  assert.strictEqual(kingMovesInCheck.some(m => m.isCastle), false, 'Cannot castle while in check');
+
+  // Now test castling through check: enemy rook at f8 controlling f1
+  engine.loadScenario({
+    turn: 'w',
+    castling: { w: { k: true, q: false }, b: { k: false, q: false } },
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bR', type: 'r', color: 'b', square: 'f8' },
+      { id: 'wR1', type: 'r', color: 'w', square: 'h1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'h8' }
+    ]
+  });
+
+  const kingMovesThroughCheck = engine.getLegalMoves('e1');
+  assert.strictEqual(kingMovesThroughCheck.some(m => m.isCastle), false, 'Cannot castle through attacked f1 square');
+});
+
+// 22. Fifty-Move Rule Draw
+test('Orthodox Caveat: Fifty-move rule triggers draw at 100 half-moves', () => {
+  const engine = new RemorseEngine();
+  engine.loadScenario({
+    turn: 'w',
+    halfMoves: 99,
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' },
+      { id: 'wR', type: 'r', color: 'w', square: 'a1' },
+      { id: 'bR', type: 'r', color: 'b', square: 'a8' }
+    ]
+  });
+
+  engine.makeMove('e1e2');
+  assert.strictEqual(engine.gameOver, true, 'Game must end on 100th half-move without capture or pawn move');
+  assert.strictEqual(engine.gameResult.status, 'draw_50_moves');
+});
+
+// 23. Threefold Repetition Draw
+test('Orthodox Caveat: Threefold repetition triggers draw when same position occurs 3 times', () => {
+  const engine = new RemorseEngine();
+  // 1. Nf3 Nf6 2. Ng1 Ng8 (position repeated 2nd time) 3. Nf3 Nf6 4. Ng1 Ng8 (position repeated 3rd time!)
+  engine.makeMove('g1f3');
+  engine.makeMove('g8f6');
+  engine.makeMove('f3g1');
+  engine.makeMove('f6g8'); // Repetition 2
+  assert.strictEqual(engine.gameOver, false);
+
+  engine.makeMove('g1f3');
+  engine.makeMove('g8f6');
+  engine.makeMove('f3g1');
+  engine.makeMove('f6g8'); // Repetition 3!
+
+  assert.strictEqual(engine.gameOver, true, 'Game must end on threefold repetition');
+  assert.strictEqual(engine.gameResult.status, 'draw_threefold_repetition');
+});
+
+// 24. Insufficient Material Draw
+test('Orthodox Caveat: Insufficient material triggers draw', () => {
+  // King vs King
+  const engine1 = new RemorseEngine();
+  engine1.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' }
+    ]
+  });
+  engine1.checkGameEnd();
+  assert.strictEqual(engine1.gameOver, true);
+  assert.strictEqual(engine1.gameResult.status, 'draw_insufficient_material');
+
+  // King + Knight vs King
+  const engine2 = new RemorseEngine();
+  engine2.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'wN', type: 'n', color: 'w', square: 'c3' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' }
+    ]
+  });
+  engine2.checkGameEnd();
+  assert.strictEqual(engine2.gameOver, true);
+  assert.strictEqual(engine2.gameResult.status, 'draw_insufficient_material');
+});
+
+// 25. Disambiguated SAN Notation
+test('Orthodox Caveat: Disambiguated SAN notation and check markers', () => {
+  const engine = new RemorseEngine();
+  // Two white knights on c3 and e3 can both jump to d5
+  engine.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' },
+      { id: 'wN1', type: 'n', color: 'w', square: 'c3' },
+      { id: 'wN2', type: 'n', color: 'w', square: 'e3' }
+    ]
+  });
+
+  const res = engine.makeMove({ from: 'c3', to: 'd5' });
+  assert.strictEqual(res.move.san, 'Ncd5', 'Must specify originating file c for disambiguation');
+});
+
+// 26. Remorse AI Bishop Rescue Mission
+test('Remorse AI: Bishop actively maneuvers to rescue dying devastated comrade', () => {
+  const RemorseAI = require('./remorse_ai.js');
+  const engine = new RemorseEngine({ autoRollDice: true });
+  engine.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'e1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'e8' },
+      { id: 'wB', type: 'b', color: 'w', square: 'c1' },
+      { id: 'wN', type: 'n', color: 'w', square: 'e4', condition: 'devastated', devastatedTurnsLeft: 1 },
+      { id: 'bP', type: 'p', color: 'b', square: 'h7' }
+    ]
+  });
+
+  const ai = new RemorseAI(engine, { depth: 2 });
+  const bestMove = ai.findBestMove();
+  // Bishop on c1 should move towards e4 (Be3 is adjacent to e4!)
+  assert.strictEqual(bestMove.piece.type, 'b', 'AI must prioritize moving the Bishop to save dying Knight');
+  assert.strictEqual(bestMove.to, 'e3', 'Bishop moves adjacent to devastated Knight to prepare absolution');
+});
+
+// 27. Remorse AI Regicide Priority
+test('Remorse AI: Immediately executes Regicide when enemy King is in reach', () => {
+  const RemorseAI = require('./remorse_ai.js');
+  const engine = new RemorseEngine({ autoRollDice: true });
+  engine.loadScenario({
+    turn: 'w',
+    pieces: [
+      { id: 'wK', type: 'k', color: 'w', square: 'a1' },
+      { id: 'bK', type: 'k', color: 'b', square: 'c7' },
+      { id: 'wN', type: 'n', color: 'w', square: 'd5', condition: 'bloodlust', kills: 3, hasRolled: true },
+      { id: 'bP', type: 'p', color: 'b', square: 'h7' }
+    ]
+  });
+
+  const ai = new RemorseAI(engine, { depth: 2 });
+  const bestMove = ai.findBestMove();
+  assert.strictEqual(bestMove.to, 'c7', 'AI must immediately capture King for automatic win');
+});
+
 console.log(`\n========================================`);
 console.log(`TEST SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED`);
 console.log(`========================================\n`);

@@ -48,8 +48,13 @@ Whenever a piece makes its **first capture** of the game, a six-sided die (d6) i
   - The piece can **ONLY move if it is capturing another piece** (no quiet moves).
   - It is willing to capture **both enemy and friendly pieces** (cannibalism).
   - It **cannot capture its own king**.
+  - **Regicide:** If a Bloodlust piece captures the opposing king, the game immediately ends in an automatic victory for the capturing team.
   - It retains its psychopath bonus move after each capture.
-- **Pawn Promotion:** Follows standard chess rules (Q, R, B, N). Promoted pieces have no previous capture history and start psychologically fresh. Promoting to a Bishop restores absolution capabilities if all previous bishops were lost.
+- **Orthodox Chess Caveats & Draw Rules:**
+  - **En Passant:** Fully honored on the turn immediately following a double pawn push (subject to horizontal king pin and pacifist capture restrictions).
+  - **Castling:** King and chosen rook cannot have moved, cannot castle out of/through/into check, and castling is disallowed if the chosen rook is Devastated or in Bloodlust.
+  - **Promotion:** Pawns promote to Q, R, B, or N. Promoted pieces start psychologically fresh (kills reset to 0, unrolled). Promoting to a Bishop restores absolution capabilities if all previous bishops were lost.
+  - **Draw Rules:** Stalemate, Fifty-Move Rule (100 half-moves without pawn moves or captures), Threefold Repetition (exact board state repeated 3 times), and Insufficient Material (K vs K, K+B vs K, K+N vs K, same-colored bishops).
 
 ---
 

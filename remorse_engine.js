@@ -67,6 +67,9 @@
       // En passant target square (e.g. 'e3' if e4 double-pushed)
       this.enPassant = null;
 
+      // Position repetition counts (for threefold repetition rule)
+      this.positionCounts = {};
+
       // Bonus move state for psychopath
       // { active: true, pieceId: string, capturesMade: number }
       this.bonusMoveState = null;
@@ -81,6 +84,8 @@
       this.redoStack = [];
 
       this.initStandardPieces();
+      const initKey = this.getPositionKey();
+      this.positionCounts[initKey] = 1;
     }
 
     initStandardPieces() {
@@ -689,7 +694,7 @@
             const gSq = 'g' + rank;
             const hSq = 'h' + rank;
             const rook = this.getPiece(hSq);
-            if (rook && rook.type === 'r' && !rook.hasMoved && !this.getPiece(fSq) && !this.getPiece(gSq)) {
+            if (rook && rook.type === 'r' && !rook.hasMoved && rook.condition !== 'devastated' && rook.condition !== 'bloodlust' && !this.getPiece(fSq) && !this.getPiece(gSq)) {
               if (!this.isSquareAttacked(fSq, enemyColor) && !this.isSquareAttacked(gSq, enemyColor)) {
                 moves.push({
                   from: piece.square,
@@ -712,7 +717,7 @@
             const bSq = 'b' + rank;
             const aSq = 'a' + rank;
             const rook = this.getPiece(aSq);
-            if (rook && rook.type === 'r' && !rook.hasMoved && !this.getPiece(dSq) && !this.getPiece(cSq) && !this.getPiece(bSq)) {
+            if (rook && rook.type === 'r' && !rook.hasMoved && rook.condition !== 'devastated' && rook.condition !== 'bloodlust' && !this.getPiece(dSq) && !this.getPiece(cSq) && !this.getPiece(bSq)) {
               if (!this.isSquareAttacked(dSq, enemyColor) && !this.isSquareAttacked(cSq, enemyColor)) {
                 moves.push({
                   from: piece.square,
@@ -929,6 +934,7 @@
         to: targetSq,
         captured: captured ? { id: captured.id, type: captured.type, color: captured.color, square: captured.square } : null,
         isFriendlyFire: !!move.isFriendlyFire,
+        isEnPassant: !!move.isEnPassant,
         promotion: move.promotion || null,
         isCastle: move.isCastle || null,
         enPassantPrev: this.enPassant,
@@ -937,6 +943,38 @@
         hasMovedPrev: piece.hasMoved,
         san: move.san
       };
+
+      // Disambiguate SAN if multiple identical pieces could reach the target square
+      if (['n', 'b', 'r', 'q'].includes(piece.type)) {
+        const otherPieces = this.getLivingPieces(piece.color).filter(p =>
+          p.id !== piece.id && p.type === piece.type
+        );
+        const candidates = [];
+        for (const other of otherPieces) {
+          const otherMoves = this.getLegalMoves(other.square);
+          if (otherMoves.some(m => m.to === targetSq)) {
+            candidates.push(other);
+          }
+        }
+        if (candidates.length > 0) {
+          const sameFile = candidates.some(c => c.square[0] === fromSq[0]);
+          const sameRank = candidates.some(c => c.square[1] === fromSq[1]);
+          let disambig = '';
+          if (!sameFile) {
+            disambig = fromSq[0];
+          } else if (!sameRank) {
+            disambig = fromSq[1];
+          } else {
+            disambig = fromSq;
+          }
+          moveRecord.san = `${piece.type.toUpperCase()}${disambig}${isCapture ? 'x' : ''}${targetSq}${move.promotion ? '=' + move.promotion.toUpperCase() : ''}`;
+        }
+      }
+
+      // 50-move rule: reset halfmove clock on pawn move or capture
+      if (isCapture || piece.type === 'p') {
+        this.halfMoves = 0;
+      }
 
       // Handle Castling moves
       if (move.isCastle) {
@@ -987,6 +1025,31 @@
       this.board[targetSq] = piece;
       piece.square = targetSq;
       piece.hasMoved = true;
+
+      // Check for Bloodlust / King Regicide (instant win for capturing team)
+      if (captured && captured.type === 'k') {
+        this.gameOver = true;
+        const winner = piece.color;
+        this.gameResult = {
+          status: 'regicide',
+          winner: winner,
+          reason: `👑 REGICIDE: ${winner === 'w' ? 'White' : 'Black'} ${this.pieceName(piece.type)} captured the King! ${winner === 'w' ? 'White' : 'Black'} wins automatically!`
+        };
+        if (!moveRecord.san.endsWith('#')) {
+          moveRecord.san += '#';
+        }
+        this.history.push(moveRecord);
+        this.history.push({
+          type: 'game_over',
+          result: this.gameResult
+        });
+        return {
+          move: moveRecord,
+          reaction: null,
+          extraMoveGranted: false,
+          pendingDiceRoll: null
+        };
+      }
 
       // Handle Pawn Promotion
       let promotedPiece = null;
@@ -1101,6 +1164,16 @@
       // Finish regular turn
       this.finishTurn();
 
+      // Check for Check / Checkmate annotation on SAN
+      if (!moveRecord.san.endsWith('#')) {
+        const nextTurnColor = this.turn;
+        if (this.gameOver && this.gameResult && this.gameResult.status === 'checkmate') {
+          moveRecord.san += '#';
+        } else if (this.isCheck(nextTurnColor)) {
+          moveRecord.san += '+';
+        }
+      }
+
       return {
         move: moveRecord,
         reaction: reactionEvent,
@@ -1170,12 +1243,116 @@
       }
       this.halfMoves += 1;
 
-      // Check for Game Over (Checkmate or Stalemate)
+      // Track position repetition
+      const posKey = this.getPositionKey();
+      this.positionCounts[posKey] = (this.positionCounts[posKey] || 0) + 1;
+
+      // Check for Game Over (Checkmate, Stalemate, 50-move draw, Threefold repetition, Insufficient material)
       this.checkGameEnd();
     }
 
+    // Unique FEN-like position hash
+    getPositionKey() {
+      const piecesStr = Object.keys(this.board).sort().map(sq => {
+        const p = this.board[sq];
+        return `${sq}:${p.color}${p.type}:${p.condition}:${p.devastatedTurnsLeft || 0}:${p.cleansingTurnsLeft || 0}`;
+      }).join(';');
+      const castlingStr = `${this.castling.w.k ? 'K' : ''}${this.castling.w.q ? 'Q' : ''}${this.castling.b.k ? 'k' : ''}${this.castling.b.q ? 'q' : ''}` || '-';
+      const epStr = this.enPassant || '-';
+      return `${piecesStr}|${this.turn}|${castlingStr}|${epStr}`;
+    }
+
+    // Insufficient material detection (FIDE orthodox chess rules)
+    isInsufficientMaterial() {
+      const living = this.getLivingPieces();
+      // If pawns, rooks, or queens exist, checkmate is possible
+      if (living.some(p => p.type === 'p' || p.type === 'r' || p.type === 'q')) {
+        return false;
+      }
+
+      const whiteMinors = living.filter(p => p.color === 'w' && (p.type === 'n' || p.type === 'b'));
+      const blackMinors = living.filter(p => p.color === 'b' && (p.type === 'n' || p.type === 'b'));
+
+      // 1. King vs King
+      if (whiteMinors.length === 0 && blackMinors.length === 0) {
+        return true;
+      }
+
+      // 2. King + minor (B or N) vs King
+      if ((whiteMinors.length === 1 && blackMinors.length === 0) ||
+          (whiteMinors.length === 0 && blackMinors.length === 1)) {
+        return true;
+      }
+
+      // 3. King + Bishop vs King + Bishop where both bishops are on same-colored squares
+      if (whiteMinors.length === 1 && blackMinors.length === 1 &&
+          whiteMinors[0].type === 'b' && blackMinors[0].type === 'b') {
+        const wCoords = squareToCoords(whiteMinors[0].square);
+        const bCoords = squareToCoords(blackMinors[0].square);
+        if (wCoords && bCoords) {
+          const wColor = (wCoords.col + wCoords.row) % 2;
+          const bColor = (bCoords.col + bCoords.row) % 2;
+          if (wColor === bColor) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
     checkGameEnd() {
+      if (this.gameOver) return;
+
       const activeColor = this.turn;
+
+      // 1. Check for Insufficient Material
+      if (this.isInsufficientMaterial()) {
+        this.gameOver = true;
+        this.gameResult = {
+          status: 'draw_insufficient_material',
+          winner: null,
+          reason: 'Draw by Insufficient Material: Neither player has enough material to checkmate.'
+        };
+        this.history.push({
+          type: 'game_over',
+          result: this.gameResult
+        });
+        return;
+      }
+
+      // 2. Check 50-Move Rule (100 half-moves)
+      if (this.halfMoves >= 100) {
+        this.gameOver = true;
+        this.gameResult = {
+          status: 'draw_50_moves',
+          winner: null,
+          reason: 'Draw by 50-move rule: 50 consecutive moves without a capture or pawn advance.'
+        };
+        this.history.push({
+          type: 'game_over',
+          result: this.gameResult
+        });
+        return;
+      }
+
+      // 3. Check Threefold Repetition
+      const posKey = this.getPositionKey();
+      if (this.positionCounts[posKey] >= 3) {
+        this.gameOver = true;
+        this.gameResult = {
+          status: 'draw_threefold_repetition',
+          winner: null,
+          reason: 'Draw by Threefold Repetition: The exact same board position occurred 3 times.'
+        };
+        this.history.push({
+          type: 'game_over',
+          result: this.gameResult
+        });
+        return;
+      }
+
+      // 4. Check for Legal moves (Checkmate or Stalemate)
       const legalMoves = this.getLegalMoves();
 
       if (legalMoves.length === 0) {
@@ -1241,6 +1418,10 @@
       }
       this.enPassant = scenario.enPassant || null;
       this.bonusMoveState = scenario.bonusMoveState || null;
+      this.halfMoves = scenario.halfMoves || 0;
+      this.positionCounts = {};
+      const posKey = this.getPositionKey();
+      this.positionCounts[posKey] = 1;
       this.undoStack = [];
       this.redoStack = [];
     }
@@ -1256,6 +1437,7 @@
         enPassant: this.enPassant,
         bonusMoveState: this.bonusMoveState ? Object.assign({}, this.bonusMoveState) : null,
         pendingDiceRoll: this.pendingDiceRoll ? Object.assign({}, this.pendingDiceRoll) : null,
+        positionCounts: Object.assign({}, this.positionCounts),
         pieces: {},
         board: {},
         historyLength: this.history.length
@@ -1280,6 +1462,7 @@
       this.enPassant = snap.enPassant;
       this.bonusMoveState = snap.bonusMoveState ? Object.assign({}, snap.bonusMoveState) : null;
       this.pendingDiceRoll = snap.pendingDiceRoll ? Object.assign({}, snap.pendingDiceRoll) : null;
+      this.positionCounts = Object.assign({}, snap.positionCounts || {});
 
       this.pieces = {};
       this.board = {};

@@ -127,7 +127,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (engine.gameOver) {
       const status = engine.gameResult && engine.gameResult.status;
-      setTurnIndicator('game-over', status === 'checkmate' ? 'Checkmate' : status === 'stalemate' ? 'Stalemate' : 'Game over');
+      let label = 'Game over';
+      if (status === 'regicide') label = 'Regicide: King captured!';
+      else if (status === 'checkmate') label = 'Checkmate';
+      else if (status === 'stalemate') label = 'Draw by Stalemate';
+      else if (status === 'draw_50_moves') label = 'Draw: 50-move rule';
+      else if (status === 'draw_threefold_repetition') label = 'Draw: Threefold repetition';
+      else if (status === 'draw_insufficient_material') label = 'Draw: Insufficient material';
+      setTurnIndicator('game-over', label);
     } else if (isAiThinking) {
       setTurnIndicator(`${side} thinking`, 'The machine is thinking');
     } else if (isBonus) {
@@ -404,6 +411,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = hist[i];
       if (item.type === 'move' && item.captured) {
         activeFlashes[item.to] = { cls: 'flash-capture', start, duration: 650 };
+        if (item.isEnPassant && item.captured.square) {
+          activeFlashes[item.captured.square] = { cls: 'flash-capture', start, duration: 650 };
+        }
       } else if (item.type === 'absolution' && item.targetSquare) {
         activeFlashes[item.targetSquare] = { cls: 'flash-absolve', start, duration: 650 };
       } else if (item.type === 'bishop_cleansed' && item.square) {
@@ -571,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Audio feedback
       if (moveParam.type === 'absolve') {
         audio.playAbsolution();
-      } else if (res.move.isFriendlyFire) {
+      } else if (res.move.isFriendlyFire || (res.move.captured && res.move.captured.type === 'k')) {
         audio.playBloodlust();
       } else if (res.move.captured) {
         audio.playCapture();
@@ -643,6 +653,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (bestMove.type === 'absolve') {
             audio.playAbsolution();
+          } else if (res.move.isFriendlyFire || (res.move.captured && res.move.captured.type === 'k')) {
+            audio.playBloodlust();
           } else if (res.move.captured) {
             audio.playCapture();
           } else {
@@ -1135,7 +1147,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleGameOver() {
     audio.playCheckmate();
     if (gameOverModalEl) {
-      gameOverTitleEl.textContent = engine.gameResult.status === 'checkmate' ? 'Checkmate' : 'Stalemate';
+      const status = engine.gameResult && engine.gameResult.status;
+      let title = 'Game over';
+      if (status === 'regicide') title = 'Regicide!';
+      else if (status === 'checkmate') title = 'Checkmate';
+      else if (status === 'stalemate') title = 'Stalemate';
+      else if (status === 'draw_50_moves') title = 'Draw (50-Move Rule)';
+      else if (status === 'draw_threefold_repetition') title = 'Draw (Threefold Repetition)';
+      else if (status === 'draw_insufficient_material') title = 'Draw (Insufficient Material)';
+      gameOverTitleEl.textContent = title;
       gameOverDescEl.textContent = stripEmoji(engine.gameResult.reason);
       gameOverModalEl.classList.remove('hidden');
     }
